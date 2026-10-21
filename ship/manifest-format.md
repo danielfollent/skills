@@ -1,8 +1,8 @@
 # Ship Manifest Format (shared reference)
 
-This file is the single source of truth for the per-ticket folder, the `manifest.md`
+This file lives in the `ship` skill folder and is the single source of truth for the per-ticket folder, the `manifest.md`
 schema, the review-log line format, and the handoff block. It is referenced by every
-`ship-` skill and by the `/ship` dispatcher. It is NOT a skill.
+`ship-` skill (as `../ship/manifest-format.md`) and by the `/ship` dispatcher.
 
 ## Per-ticket folder
 
@@ -72,9 +72,8 @@ Workspace root: <absolute path>
 | 2a | Research (repo: api)  | pending | research-api.md |
 | 2b | Research (repo: web)  | n/a  | - |
 | 3 | Solution design | pending | design.md, design-questions.md |
-| 4 | Work breakdown | pending | work-breakdown.md |
-| 5 | Create plan | pending | plan.md |
-| 6 | Implement plan | pending | - |
+| 4 | Create plan | pending | plan.md |
+| 5 | Implement plan | pending | - |
 
 ## Artifacts & Reviews
 ### design.md
@@ -96,6 +95,8 @@ Workspace root: <absolute path>
   multi-instance: rows `1a`, `1b`, ... labelled `Questions (repo: <name>)`, and rows `2a`,
   `2b`, ... labelled `Research (repo: <name>)`. The research rows are SEEDED (as `pending`) by
   `ship-generate-questions` from the confirmed scope, so research knows which repos to expect.
+  Rows `3` Solution design, `4` Create plan and `5` Implement plan are single-instance and are
+  seeded `pending` at the same time (five stages total).
   Status enum: `pending | in-progress | done | n/a`.
 - **`## Artifacts & Reviews`** — per artifact a `### <artifact>` heading, an `Authored:` line,
   then zero or more review lines.
@@ -108,13 +109,26 @@ standalone single-repo runs) NEVER write `manifest.md` — this is what keeps re
 parallel-safe across terminals. Only a dispatching research main thread persists the reconciled
 rows, and only after every artifact has landed.
 
+### Legacy rows (six-stage manifests)
+
+Manifests seeded before the work-breakdown stage was merged into create-plan have six rows, with
+row `4` `Work breakdown` (or the older `Structure outline`) and `work-breakdown.md` as its
+artifact. Keep them usable without rewriting history:
+- A `done` legacy row stays exactly as it is; its artifact is preserved and `ship-create-plan`
+  reads it as context.
+- Any other status on that row (`pending`, `skipped`, `next`, ...) is treated as `n/a` by the
+  dispatcher when picking the next stage. `ship-create-plan` sets it to `n/a` with the artifact
+  column `merged into Create plan` when it next writes the manifest. A stale
+  `Next: /ship-work-breakdown` means `/ship-create-plan`.
+- Never renumber legacy rows. Stage counts for such a ticket stay `X/6`; new manifests are `X/5`.
+
 ## Single-writer rule
 
 `manifest.md` is written ONLY by single-threaded contexts:
 - `ship-generate-questions`
 - a `ship-research-codebase` DISPATCHING main thread (single-threaded), ONLY to persist the
   `Research (repo: <name>)` reconcile after every `research-<repo>.md` has landed
-- the planning trio (`ship-solution-design`, `ship-work-breakdown`, `ship-create-plan`)
+- the planning stages (`ship-solution-design`, `ship-create-plan`)
 - `ship-implement-plan` (ONLY to mark the `Implement plan` stage `done`, and ONLY when its plan file
   lives inside a `*-ship/` folder; standalone runs never touch a manifest)
 - dispatcher transitions

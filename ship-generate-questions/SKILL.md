@@ -19,12 +19,12 @@ This is the ONLY pipeline stage that legitimately sees the ticket, so repo scopi
 repos against the ticket) lives HERE. The per-repo question files it emits stay intent-neutral,
 so downstream research never sees the ticket.
 
-Folder + manifest conventions: `~/.claude/skills/_ship-shared/manifest-format.md`.
+Folder + manifest conventions: `manifest-format.md` in the `ship` skill folder (`../ship/manifest-format.md` from this skill's base directory).
 
 ## Inputs
 
-A ticket ID or task description. If a Jira ticket ID is provided (e.g. SP-42), fetch it with
-`mcp__claude_ai_Atlassian__getJiraIssue`.
+A ticket ID or task description. If a ticket ID is provided (e.g. SP-42) and a tracker tool
+(e.g. a Jira MCP server) is available, fetch it; otherwise ask the user to paste the ticket.
 
 ## Process
 
@@ -51,7 +51,7 @@ Read the ticket/description. Identify:
 5. **Present the FULL candidate list** to the user with the shortlist pre-selected; ask them to
    confirm or redirect (multi-select). The user has final say over which repos are in scope.
    Also present the detected workspace root for confirm/redirect.
-6. **Resolve/init the ticket folder** per `_ship-shared/manifest-format.md` (walk up + confirm;
+6. **Resolve/init the ticket folder** per `manifest-format.md` (walk up + confirm;
    init if missing). Write the `## Repo Scope` section: the confirmed workspace root and the
    `| Repo | Selected | Reason |` table listing EVERY candidate (selected and dropped, with
    reasons).
@@ -95,6 +95,8 @@ points and interfaces; test patterns; error handling and edge cases; configurati
   - one `Questions (repo: <name>)` row per confirmed repo marked `done` with its artifact, and
   - one `Research (repo: <name>)` row per confirmed repo marked `pending` (so research knows the
     expected set). Repos NOT selected get `n/a` rows.
+  - the single-instance rows `3 Solution design`, `4 Create plan`, `5 Implement plan`, all
+    `pending` (five stages total; there is no work-breakdown row).
 - Set `Next` to `/ship-research-codebase` with the fresh-thread instruction.
 - Present the questions to the user for review (they may add/remove/refine before research).
 - Print the handoff block.

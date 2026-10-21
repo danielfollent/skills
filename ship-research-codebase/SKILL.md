@@ -24,7 +24,7 @@ Standalone fallback (still supported): you may instead run this once per repo in
 terminals (one repo each). Those runs stay PURE ARTIFACT PRODUCERS — they write only
 `research-<repo>.md` and never `manifest.md`, which keeps them parallel-safe.
 
-Folder + manifest conventions: `~/.claude/skills/_ship-shared/manifest-format.md`.
+Folder + manifest conventions: `manifest-format.md` in the `ship` skill folder (`../ship/manifest-format.md` from this skill's base directory).
 
 ## Cost model (read before deciding how many agents to spawn)
 
@@ -39,7 +39,7 @@ the slices need genuinely different orientation. Theme count is not a reason to 
 
 ### Step 0: Resolve folder + pending repos
 
-- Resolve the ticket folder per `_ship-shared/manifest-format.md` (walk up + confirm; init if
+- Resolve the ticket folder per `manifest-format.md` (walk up + confirm; init if
   missing).
 - Read the manifest `## Repo Scope` (workspace root + selected repos) and the
   `Research (repo: <name>)` rows.

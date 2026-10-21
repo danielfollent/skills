@@ -1,6 +1,6 @@
 ---
 name: ship-solution-design
-description: Ship pipeline stage 3. Produces a solution design that demonstrably covers the coverage map, driven by an interactive grill-me decision-tree question walk and hardened by tiered antagonistic review (full per-lens fan-out / combined single-pass / skip, chosen at a checkpoint). Reads all per-repo research + the ticket; writes design.md + design-questions.md into the manifest folder.
+description: Ship pipeline stage 3. Produces a solution design that demonstrably covers the coverage map, driven by an interactive decision-tree question walk and hardened by tiered antagonistic review (full per-lens fan-out / combined single-pass / skip, chosen at a checkpoint). Reads all per-repo research + the ticket; writes design.md + design-questions.md into the manifest folder.
 triggers:
   - /ship-solution-design
 model: opus
@@ -10,23 +10,39 @@ model: opus
 
 Triggered by: `/ship-solution-design [ticket-or-description]`
 
-Produce a design that demonstrably COVERS the coverage map. The METHOD is your own - do NOT
-recreate a human design ritual to "hit" each box. The coverage map is an OUTPUT CONTRACT:
-`~/.claude/skills/_ship-shared/coverage-map.md`.
+Produce a design that demonstrably COVERS the coverage map below. The METHOD is your own - do
+NOT recreate a human design ritual to "hit" each box. The coverage map is an OUTPUT CONTRACT.
 
-Folder + manifest conventions: `~/.claude/skills/_ship-shared/manifest-format.md`.
+Folder + manifest conventions: `manifest-format.md` in the `ship` skill folder (`../ship/manifest-format.md` from this skill's base directory).
+
+## Coverage map
+
+1. **Product / requirements** - the problem, the users, the acceptance criteria, scope
+   boundaries. Technical dimensions depend on this, so it is addressed first.
+2. **Architecture & codebase-pattern fit** - how the change sits in the existing system; reuse of
+   existing patterns over inventing new ones; module boundaries.
+3. **Security** - authn/authz, data exposure, input validation, secrets, schema-edge typing.
+4. **Performance & scalability** - hot paths, query/load patterns, limits, growth.
+5. **Reliability & operations** - observability/logging, failure modes, rollback, runbooks,
+   SLAs, alerting.
+6. **Data & integration** - schemas, contracts, events, migrations, backward compatibility.
+
+Judge each dimension's relevance for this ticket. Each gets EITHER substantive coverage OR an
+explicit `N/A — <reason>`; both count. A dimension is never silently omitted. The same set seeds
+the question walk (Step 3) and the review lenses (Step 5): `product`, `architecture`, `security`,
+`performance`, `reliability`, `data`.
 
 ## Inputs
 
 1. **All per-repo research** - `research-<repo>.md` files in the ticket folder.
-2. **Ticket/task description** - what we're building (fetch Jira with
-   `mcp__claude_ai_Atlassian__getJiraIssue` if an ID is given).
+2. **Ticket/task description** - what we're building. If a ticket ID is given and a tracker tool
+   (e.g. a Jira MCP server) is available, fetch it; otherwise ask the user to paste it.
 
 ## Process
 
 ### Step 1: Resolve folder + reconcile research + gather inputs
 
-- Resolve the ticket folder per `_ship-shared/manifest-format.md`.
+- Resolve the ticket folder per `manifest-format.md`.
 - RECONCILE the `Research (repo: <name>)` rows from artifact presence and PERSIST the manifest
   (single-threaded write is safe here - design runs once, after research): mark `done` each row
   whose `research-<repo>.md` exists.
@@ -38,9 +54,10 @@ Folder + manifest conventions: `~/.claude/skills/_ship-shared/manifest-format.md
 Using the research file references, read the specific code that represents patterns relevant to
 this task. Extract 3-5 concrete snippets (with file:line) the implementation should follow.
 
-### Step 3: Decision-tree question walk (grill-me style)
+### Step 3: Decision-tree question walk
 
-Replace a light "open questions" step with an INTERACTIVE walk. Draw on `grill-me`:
+Replace a light "open questions" step with an INTERACTIVE walk, grilling the user relentlessly
+down the decision tree:
 
 - Ask ONE question at a time. For each: FIRST write the question to `design-questions.md`, THEN
   present it to the user. Writing before asking lets the team share the doc and collaborate on
@@ -117,29 +134,29 @@ For each dimension: substantive coverage OR `N/A — <reason>`.
 
 ### Step 5: Antagonistic review (tiered)
 
-**5a — Select lenses.** Pick the RELEVANT lenses from the coverage map (option b - your judgment).
+**5a — Select lenses.** Pick the RELEVANT lenses from the coverage map (your judgment).
 
 **5b — Choose depth.** The per-lens fan-out is thorough but heavy (up to 6 Opus agents); not every
 ticket needs it. Judge the ticket's size/risk, then offer the depth via `AskUserQuestion` (header
 `Review depth`), recommended option FIRST with a `(Recommended)` suffix (mirror the `/ship`
 stop-question convention):
-- **Full** — one `antagonistic-reviewer` per relevant lens, in parallel. Deepest.
-- **Combined** — one `antagonistic-reviewer` over all relevant lenses in a single pass. Lighter;
+- **Full** — one reviewer per relevant lens, in parallel. Deepest.
+- **Combined** — one reviewer over all relevant lenses in a single pass. Lighter;
   a real depth tradeoff (focus diluted across lenses).
 - **Skip** — no review. Trivial/mechanical change only.
 Recommend **Full** when a risk lens (security / data / reliability) is relevant or scope is broad;
 lean **Combined/Skip** for narrow, low-risk, mechanical work. The user always decides.
 
 **5c — Dispatch.** Read the pertinent CLAUDE.md rules first (subagents do NOT auto-read CLAUDE.md).
-Invoke `antagonistic-reviewer` (Task, `subagent_type: antagonistic-reviewer`), passing `design.md`,
-the upstream research, the LENS, and the injected CLAUDE.md rules verbatim:
-- **Full**: one invocation per lens, IN PARALLEL (LENS = a single lens each).
-- **Combined**: ONE invocation, LENS = the full relevant-lens list.
+Invoke the `ship-antagonistic-review` skill with ARTIFACT = `design.md`, CONTEXT = the research
+files, the selected LENSES, the CLAUDE.md rules verbatim, and MODE:
+- **Full**: `full` (one reviewer per lens, in parallel).
+- **Combined**: `combined` (one reviewer, all relevant lenses).
 - **Skip**: no invocation.
 
 **5d — Incorporate.** Assess the findings; incorporate the valid ones into `design.md`.
 
-**5e — Log to the manifest** under `### design.md` (formats: `_ship-shared/manifest-format.md`):
+**5e — Log to the manifest** under `### design.md` (formats: `manifest-format.md`):
 - Full: one `- Review [antagonistic:<lens>]: <outcome>` per lens.
 - Combined: `- Review [antagonistic:combined(<lens,lens,...>)]: <outcome>`.
 - Skip: `- Review [antagonistic:skipped]: <reason>`.
@@ -150,7 +167,7 @@ the upstream research, the LENS, and the injected CLAUDE.md rules verbatim:
 ### Step 6: Manifest + handoff
 
 - Mark the Design stage `done` with artifacts (`design.md`, `design-questions.md`).
-- Set `Next` to `/ship-work-breakdown`.
+- Set `Next` to `/ship-create-plan`.
 - Print the handoff block (fresh thread).
 
 ## Rules
